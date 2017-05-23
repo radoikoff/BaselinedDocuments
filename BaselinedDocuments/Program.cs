@@ -24,10 +24,38 @@ namespace BaselinedDocuments
 
             CreateFolderStructure(statements, sourcePath, targetPath, baselineFolderName, filesTimeStamp);
 
-            CreateUpdateArchives(targetPath);
+            CreateUpdateArchives(targetPath, baselineFolderName);
         }
 
-        private static void CreateFolderStructure(List<Statement>statements, string sourcePath, string targetPath, string baselineFolderName, string filesTimeStamp)
+        private static void GetMappingData(List<Statement> statements)
+        {
+            string mappingFile = ConfigurationManager.AppSettings.Get("MappingFile");
+
+            if (!File.Exists(mappingFile))
+            {
+                Console.WriteLine("Mapping file does not exists");
+                return;
+            }
+
+            string[] mappingData = File.ReadAllLines(mappingFile);
+
+            foreach (var item in mappingData)
+            {
+                string statName = item.Split(',').First().Trim();       //to check if data is valid
+                string fileName = item.Split(',').Skip(1).First().Trim();
+
+                if (!statements.Any(s => s.Name.Equals(statName)))
+                {
+                    var stat = new Statement();
+                    stat.Name = statName;
+                    statements.Add(stat);
+                }
+
+                statements.FirstOrDefault(s => s.Name.Equals(statName)).Documents.Add(fileName);
+            }
+        }
+        
+        private static void CreateFolderStructure(List<Statement> statements, string sourcePath, string targetPath, string baselineFolderName, string filesTimeStamp)
         {
             foreach (var statement in statements)
             {
@@ -69,48 +97,56 @@ namespace BaselinedDocuments
             }
         }
 
-        private static void CreateUpdateArchives(string workingDir)
+        private static void CreateUpdateArchives(string workingDir, string baselineFolderName)
         {
             var workingDirInfo = new DirectoryInfo(workingDir);
+            var zipFiles = workingDirInfo.GetFiles("*.zip").Select(f => Path.GetFileNameWithoutExtension(f.Name));
+
             foreach (var dir in workingDirInfo.GetDirectories())
             {
-                string zipName = Path.Combine(workingDir, dir.Name) + ".zip";
-                try
+                if (zipFiles.Contains(dir.Name))
                 {
-                    ZipFile.CreateFromDirectory(dir.FullName, zipName);
+                    ZipArchive archive = ZipFile.OpenRead(Path.Combine(workingDir, dir.Name + ".zip"));
+                    bool isCurrentBaselineExists = archive.Entries.Select(e => Path.GetDirectoryName(e.FullName)).Contains(baselineFolderName);
+                    archive.Dispose();
+                    if (!isCurrentBaselineExists)
+                    {
+                        //update exsiting zip
+                        Console.WriteLine("Updated " + dir.Name);
+                    }
                 }
-                catch (Exception e)
+                else
                 {
-                    Console.WriteLine("Error (zips): " + dir.Name + " : " + e.Message);
+                    //create new zip
+                    string zipName = Path.Combine(workingDir, dir.Name) + ".zip";
+                    try
+                    {
+                        ZipFile.CreateFromDirectory(dir.FullName, zipName);
+                        Console.WriteLine("Created " + zipName);
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine("Error (zips): " + dir.Name + " : " + e.Message);
+                    }
                 }
+                DeleteDirectoryContent(dir.FullName);
+                Directory.Delete(dir.FullName);
             }
         }
 
-        private static void GetMappingData(List<Statement> statements)
+        private static void DeleteDirectoryContent(string directoryFullName)
         {
-            string mappingFile = ConfigurationManager.AppSettings.Get("MappingFile");
+            var directory = new DirectoryInfo(directoryFullName);
 
-            if (!File.Exists(mappingFile))
+            foreach (var file in directory.GetFiles())
             {
-                Console.WriteLine("Mapping file does not exists");
-                return;
+                file.Delete();
             }
 
-            string[] mappingData = File.ReadAllLines(mappingFile);
-
-            foreach (var item in mappingData)
+            foreach (var dir in directory.GetDirectories())
             {
-                string statName = item.Split(',').First().Trim();       //to check if data is valid
-                string fileName = item.Split(',').Skip(1).First().Trim();
-
-                if (!statements.Any(s => s.Name.Equals(statName)))
-                {
-                    var stat = new Statement();
-                    stat.Name = statName;
-                    statements.Add(stat);
-                }
-
-                statements.FirstOrDefault(s => s.Name.Equals(statName)).Documents.Add(fileName);
+                DeleteDirectoryContent(dir.FullName);
+                dir.Delete();
             }
         }
     }
