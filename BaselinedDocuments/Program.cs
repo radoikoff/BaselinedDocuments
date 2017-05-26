@@ -17,23 +17,26 @@ namespace BaselinedDocuments
             string targetPath = ConfigurationManager.AppSettings.Get("TargetPath");
             string filesTimeStamp = ConfigurationManager.AppSettings.Get("FilesTimeStamp");
             string baselineFolderName = ConfigurationManager.AppSettings.Get("BaselineFolderName");
-
+            var outputLog = new StringBuilder("Output Log : " + DateTime.Now + "\r\n");
             var statements = new List<Statement>();
 
-            GetMappingData(statements);
+            GetMappingData(statements, outputLog);
 
-            CreateFolderStructure(statements, sourcePath, targetPath, baselineFolderName, filesTimeStamp);
+            CreateFolderStructure(statements, sourcePath, targetPath, baselineFolderName, filesTimeStamp, outputLog);
 
-            CreateUpdateArchives(targetPath, baselineFolderName);
+            CreateUpdateArchives(targetPath, baselineFolderName, outputLog);
+
+            File.AppendAllText("Output.txt", outputLog.ToString());
         }
 
-        private static void GetMappingData(List<Statement> statements)
+        private static void GetMappingData(List<Statement> statements, StringBuilder outputLog)
         {
             string mappingFile = ConfigurationManager.AppSettings.Get("MappingFile");
 
             if (!File.Exists(mappingFile))
             {
                 Console.WriteLine("Mapping file does not exists");
+                outputLog.Append("Mapping file does not exists \r\n");
                 return;
             }
 
@@ -54,12 +57,14 @@ namespace BaselinedDocuments
                 statements.FirstOrDefault(s => s.Name.Equals(statName)).Documents.Add(fileName);
             }
         }
-        
-        private static void CreateFolderStructure(List<Statement> statements, string sourcePath, string targetPath, string baselineFolderName, string filesTimeStamp)
+
+        private static void CreateFolderStructure(List<Statement> statements, string sourcePath, string targetPath, string baselineFolderName, string filesTimeStamp, StringBuilder outputLog)
         {
             foreach (var statement in statements)
             {
-                string dirName = Path.Combine(targetPath, "Archive - " + statement.Name);
+                string statementNameFixed = string.Join("_", statement.Name.Split(Path.GetInvalidFileNameChars())); //get rid of ilegal folder characters
+                string dirName = Path.Combine(targetPath, "Archive - " + statementNameFixed);
+
                 if (!Directory.Exists(dirName))
                 {
                     Directory.CreateDirectory(dirName);
@@ -67,6 +72,7 @@ namespace BaselinedDocuments
                 else
                 {
                     Console.WriteLine("Error (folders): This directory already exisits: {0}", dirName);
+                    outputLog.Append($"Error (folders): This directory already exisits: {dirName} \r\n");
                 }
 
                 string processDir = Path.Combine(dirName, baselineFolderName);
@@ -77,6 +83,7 @@ namespace BaselinedDocuments
                 else
                 {
                     Console.WriteLine("Error (folders): This directory already exisits: {0}", processDir);
+                    outputLog.Append($"Error (folders): This directory already exisits: {processDir} \r\n");
                 }
 
                 foreach (var document in statement.Documents)
@@ -92,12 +99,13 @@ namespace BaselinedDocuments
                     catch (Exception e)
                     {
                         Console.WriteLine("Error (files): " + statement.Name + " : " + e.Message);
+                        outputLog.Append("Error (files): " + statement.Name + " : " + e.Message + "\r\n");
                     }
                 }
             }
         }
 
-        private static void CreateUpdateArchives(string workingDir, string baselineFolderName)
+        private static void CreateUpdateArchives(string workingDir, string baselineFolderName, StringBuilder outputLog)
         {
             var workingDirInfo = new DirectoryInfo(workingDir);
             var zipFiles = workingDirInfo.GetFiles("*.zip").Select(f => Path.GetFileNameWithoutExtension(f.Name));
@@ -113,6 +121,7 @@ namespace BaselinedDocuments
                     {
                         //update exsiting zip
                         Console.WriteLine("Updated " + dir.Name);
+                        outputLog.Append("Updated " + dir.Name + "\r\n");
                     }
                 }
                 else
@@ -123,10 +132,12 @@ namespace BaselinedDocuments
                     {
                         ZipFile.CreateFromDirectory(dir.FullName, zipName);
                         Console.WriteLine("Created " + zipName);
+                        outputLog.Append("Created " + zipName + "\r\n");
                     }
                     catch (Exception e)
                     {
                         Console.WriteLine("Error (zips): " + dir.Name + " : " + e.Message);
+                        outputLog.Append("Error (zips): " + dir.Name + " : " + e.Message + "\r\n");
                     }
                 }
                 DeleteDirectoryContent(dir.FullName);
