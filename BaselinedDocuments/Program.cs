@@ -22,9 +22,11 @@ namespace BaselinedDocuments
 
             GetMappingData(statements, outputLog);
 
-            CreateFolderStructure(statements, sourcePath, targetPath, baselineFolderName, filesTimeStamp, outputLog);
+            Test(statements, sourcePath, targetPath, baselineFolderName, filesTimeStamp, outputLog);
 
-            CreateUpdateArchives(targetPath, baselineFolderName, outputLog);
+            // CreateFolderStructure(statements, sourcePath, targetPath, baselineFolderName, filesTimeStamp, outputLog);
+
+            // CreateUpdateArchives(targetPath, baselineFolderName, outputLog);
 
             File.AppendAllText("Output.txt", outputLog.ToString());
         }
@@ -117,11 +119,19 @@ namespace BaselinedDocuments
                     ZipArchive archive = ZipFile.OpenRead(Path.Combine(workingDir, dir.Name + ".zip"));
                     bool isCurrentBaselineExists = archive.Entries.Select(e => Path.GetDirectoryName(e.FullName)).Contains(baselineFolderName);
                     archive.Dispose();
+
                     if (!isCurrentBaselineExists)
                     {
+                        ZipArchive archiveToUpdate = ZipFile.Open(Path.Combine(workingDir, dir.Name + ".zip"), ZipArchiveMode.Update);
+                        archiveToUpdate.CreateEntry(baselineFolderName + "//");
+
                         //update exsiting zip
                         Console.WriteLine("Updated " + dir.Name);
                         outputLog.Append("Updated " + dir.Name + "\r\n");
+                    }
+                    else
+                    {
+                        //curent baseline folder exisits err msg.
                     }
                 }
                 else
@@ -160,5 +170,61 @@ namespace BaselinedDocuments
                 dir.Delete();
             }
         }
+
+
+        private static void Test(List<Statement> statements, string sourcePath, string DestinationPath, string baselineFolderName, string filesTimeStamp, StringBuilder outputLog)
+        {
+            foreach (var statement in statements)
+            {
+                string statementNameFixed = string.Join("_", statement.Name.Split(Path.GetInvalidFileNameChars())); //get rid of ilegal folder characters
+                string archiveName = "Archive - " + statementNameFixed;
+                string fullArchiveName = Path.Combine(DestinationPath, archiveName) + ".zip";
+
+                string msgTextSuccess = String.Empty;
+
+                var destinationDirInfo = new DirectoryInfo(DestinationPath);
+                var existingZipFileNames = destinationDirInfo.GetFiles("*.zip").Select(f => Path.GetFileNameWithoutExtension(f.Name));
+
+                if (existingZipFileNames.Contains(archiveName))
+                {
+                    msgTextSuccess = archiveName + "created sucessfully";
+                }
+                else
+                {
+                    msgTextSuccess = archiveName + "updated sucessfuly";
+                    fullArchiveName = Path.Combine(DestinationPath, "NewZips", archiveName) + ".zip";
+                }
+
+
+                try
+                {
+                    using (ZipArchive archive = ZipFile.Open(fullArchiveName, ZipArchiveMode.Update))
+                    {
+                        bool isCurrentBaselineExists = archive.Entries.Select(e => Path.GetDirectoryName(e.FullName)).Contains(baselineFolderName);
+                        if (!isCurrentBaselineExists)
+                        {
+                            foreach (var document in statement.Documents)
+                            {
+                                archive.CreateEntryFromFile(Path.Combine(sourcePath, document), Path.Combine(baselineFolderName, document));
+                            }
+                            Console.WriteLine(msgTextSuccess);
+                            outputLog.Append(msgTextSuccess + "\r\n");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"ERROR: Folder {baselineFolderName} already exisits in {archiveName}");
+                            outputLog.Append($"ERROR: Folder {baselineFolderName} already exisits in {archiveName} \r\n");
+                        }
+                    }
+                }
+                catch (Exception exception)
+                {
+                    Console.WriteLine($"ERROR: Unable to open or update {fullArchiveName} : {exception.Message}");
+                    outputLog.Append($"ERROR: Unable to open or update {fullArchiveName} : {exception.Message} \r\n");
+                }
+            }
+
+        }
     }
 }
+
