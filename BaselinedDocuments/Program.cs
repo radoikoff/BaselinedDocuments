@@ -15,6 +15,7 @@ namespace BaselinedDocuments
         {
             string sourcePath = ConfigurationManager.AppSettings.Get("SourcePath");
             string targetPath = ConfigurationManager.AppSettings.Get("TargetPath");
+            string newZipFilesPath = ConfigurationManager.AppSettings.Get("NewZipFilesPath");
             string filesTimeStamp = ConfigurationManager.AppSettings.Get("FilesTimeStamp");
             string baselineFolderName = ConfigurationManager.AppSettings.Get("BaselineFolderName");
             var outputLog = new StringBuilder("Output Log : " + DateTime.Now + "\r\n");
@@ -22,11 +23,7 @@ namespace BaselinedDocuments
 
             GetMappingData(statements, outputLog);
 
-            Test(statements, sourcePath, targetPath, baselineFolderName, filesTimeStamp, outputLog);
-
-            // CreateFolderStructure(statements, sourcePath, targetPath, baselineFolderName, filesTimeStamp, outputLog);
-
-            // CreateUpdateArchives(targetPath, baselineFolderName, outputLog);
+            CreateUpdateArchives(statements, sourcePath, targetPath, newZipFilesPath, baselineFolderName, filesTimeStamp, outputLog);
 
             File.AppendAllText("Output.txt", outputLog.ToString());
         }
@@ -60,119 +57,7 @@ namespace BaselinedDocuments
             }
         }
 
-        private static void CreateFolderStructure(List<Statement> statements, string sourcePath, string targetPath, string baselineFolderName, string filesTimeStamp, StringBuilder outputLog)
-        {
-            foreach (var statement in statements)
-            {
-                string statementNameFixed = string.Join("_", statement.Name.Split(Path.GetInvalidFileNameChars())); //get rid of ilegal folder characters
-                string dirName = Path.Combine(targetPath, "Archive - " + statementNameFixed);
-
-                if (!Directory.Exists(dirName))
-                {
-                    Directory.CreateDirectory(dirName);
-                }
-                else
-                {
-                    Console.WriteLine("Error (folders): This directory already exisits: {0}", dirName);
-                    outputLog.Append($"Error (folders): This directory already exisits: {dirName} \r\n");
-                }
-
-                string processDir = Path.Combine(dirName, baselineFolderName);
-                if (!Directory.Exists(processDir))
-                {
-                    Directory.CreateDirectory(processDir);
-                }
-                else
-                {
-                    Console.WriteLine("Error (folders): This directory already exisits: {0}", processDir);
-                    outputLog.Append($"Error (folders): This directory already exisits: {processDir} \r\n");
-                }
-
-                foreach (var document in statement.Documents)
-                {
-                    var newDocumentName = Path.GetFileNameWithoutExtension(document) + " " + filesTimeStamp + Path.GetExtension(document);
-                    string sourceFile = Path.Combine(sourcePath, document);
-                    string destFile = Path.Combine(processDir, newDocumentName);
-
-                    try
-                    {
-                        File.Copy(sourceFile, destFile);
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine("Error (files): " + statement.Name + " : " + e.Message);
-                        outputLog.Append("Error (files): " + statement.Name + " : " + e.Message + "\r\n");
-                    }
-                }
-            }
-        }
-
-        private static void CreateUpdateArchives(string workingDir, string baselineFolderName, StringBuilder outputLog)
-        {
-            var workingDirInfo = new DirectoryInfo(workingDir);
-            var zipFiles = workingDirInfo.GetFiles("*.zip").Select(f => Path.GetFileNameWithoutExtension(f.Name));
-
-            foreach (var dir in workingDirInfo.GetDirectories())
-            {
-                if (zipFiles.Contains(dir.Name))
-                {
-                    ZipArchive archive = ZipFile.OpenRead(Path.Combine(workingDir, dir.Name + ".zip"));
-                    bool isCurrentBaselineExists = archive.Entries.Select(e => Path.GetDirectoryName(e.FullName)).Contains(baselineFolderName);
-                    archive.Dispose();
-
-                    if (!isCurrentBaselineExists)
-                    {
-                        ZipArchive archiveToUpdate = ZipFile.Open(Path.Combine(workingDir, dir.Name + ".zip"), ZipArchiveMode.Update);
-                        archiveToUpdate.CreateEntry(baselineFolderName + "//");
-
-                        //update exsiting zip
-                        Console.WriteLine("Updated " + dir.Name);
-                        outputLog.Append("Updated " + dir.Name + "\r\n");
-                    }
-                    else
-                    {
-                        //curent baseline folder exisits err msg.
-                    }
-                }
-                else
-                {
-                    //create new zip
-                    string zipName = Path.Combine(workingDir, dir.Name) + ".zip";
-                    try
-                    {
-                        ZipFile.CreateFromDirectory(dir.FullName, zipName);
-                        Console.WriteLine("Created " + zipName);
-                        outputLog.Append("Created " + zipName + "\r\n");
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine("Error (zips): " + dir.Name + " : " + e.Message);
-                        outputLog.Append("Error (zips): " + dir.Name + " : " + e.Message + "\r\n");
-                    }
-                }
-                DeleteDirectoryContent(dir.FullName);
-                Directory.Delete(dir.FullName);
-            }
-        }
-
-        private static void DeleteDirectoryContent(string directoryFullName)
-        {
-            var directory = new DirectoryInfo(directoryFullName);
-
-            foreach (var file in directory.GetFiles())
-            {
-                file.Delete();
-            }
-
-            foreach (var dir in directory.GetDirectories())
-            {
-                DeleteDirectoryContent(dir.FullName);
-                dir.Delete();
-            }
-        }
-
-
-        private static void Test(List<Statement> statements, string sourcePath, string DestinationPath, string baselineFolderName, string filesTimeStamp, StringBuilder outputLog)
+        private static void CreateUpdateArchives(List<Statement> statements, string sourcePath, string DestinationPath, string newZipFilesPath, string baselineFolderName, string filesTimeStamp, StringBuilder outputLog)
         {
             foreach (var statement in statements)
             {
@@ -187,12 +72,12 @@ namespace BaselinedDocuments
 
                 if (existingZipFileNames.Contains(archiveName))
                 {
-                    msgTextSuccess = archiveName + "created sucessfully";
+                    msgTextSuccess = archiveName + " created sucessfully";
                 }
                 else
                 {
-                    msgTextSuccess = archiveName + "updated sucessfuly";
-                    fullArchiveName = Path.Combine(DestinationPath, "NewZips", archiveName) + ".zip";
+                    msgTextSuccess = archiveName + " updated sucessfuly";
+                    fullArchiveName = Path.Combine(DestinationPath, newZipFilesPath, archiveName) + ".zip";
                 }
 
 
@@ -205,7 +90,8 @@ namespace BaselinedDocuments
                         {
                             foreach (var document in statement.Documents)
                             {
-                                archive.CreateEntryFromFile(Path.Combine(sourcePath, document), Path.Combine(baselineFolderName, document));
+                                string newDocumentName = Path.GetFileNameWithoutExtension(document) + " " + filesTimeStamp + Path.GetExtension(document);
+                                archive.CreateEntryFromFile(Path.Combine(sourcePath, document), Path.Combine(baselineFolderName, newDocumentName));
                             }
                             Console.WriteLine(msgTextSuccess);
                             outputLog.Append(msgTextSuccess + "\r\n");
