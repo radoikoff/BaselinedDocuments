@@ -35,10 +35,12 @@ namespace BaselinedDocuments
 
             string[] mappingData = File.ReadAllLines(mappingFile);
 
-            foreach (var item in mappingData)
+            foreach (var line in mappingData)
             {
-                string statName = item.Split(',').First().Trim();       //to check if data is valid
-                string fileName = item.Split(',').Skip(1).First().Trim();
+                string[] tokens = line.Split(',');   //to check if data is valid
+                string statName = tokens[0].Trim();
+                string docTitle = tokens[2].Trim();
+                string docFileName = tokens[3].Trim();
 
                 if (!statements.Any(s => s.Name.Equals(statName)))
                 {
@@ -47,7 +49,9 @@ namespace BaselinedDocuments
                     statements.Add(stat);
                 }
 
-                statements.FirstOrDefault(s => s.Name.Equals(statName)).Documents.Add(fileName);
+                var document = new Document(docTitle, docFileName);
+
+                statements.FirstOrDefault(s => s.Name.Equals(statName)).Documents.Add(document);
             }
         }
 
@@ -67,13 +71,13 @@ namespace BaselinedDocuments
             {
                 string fullArchiveName;
                 string msgTextSuccess;
-                string statementNameFixed = string.Join("_", statement.Name.Split(Path.GetInvalidFileNameChars())); //get rid of ilegal folder characters
+                string statementNameFixed = string.Join("_", statement.Name.Split(Path.GetInvalidFileNameChars())); //get rid of illegal folder characters
                 string archiveName = "Archive - " + statementNameFixed;
 
                 var destinationDirInfo = new DirectoryInfo(destinationPath);
                 var existingZipFileNames = destinationDirInfo.GetFiles("*.zip").Select(f => Path.GetFileNameWithoutExtension(f.Name));
 
-                if (isDocumentsAvailable(statement, sourceMasterFileNames, sourceDraftFileNames))
+                if (IsDocumentsAvailable(statement, sourceMasterFileNames, sourceDraftFileNames))
                 {
                     if (existingZipFileNames.Contains(archiveName)) //Update
                     {
@@ -90,8 +94,8 @@ namespace BaselinedDocuments
                 }
                 else
                 {
-                    OutputWriter.DisplayMessage($"ERROR: Not all required files are avaliable");
-                    OutputWriter.WriteMessageInLogFile($"ERROR: Not all required files are avaliable");
+                    OutputWriter.DisplayMessage($"ERROR: Not all required files are avaliable for statetment {statement.Name}");
+                    OutputWriter.WriteMessageInLogFile($"ERROR: Not all required files are avaliable for statetment {statement.Name}");
                 }
             }
         }
@@ -111,16 +115,17 @@ namespace BaselinedDocuments
                     {
                         foreach (var document in statement.Documents)
                         {
-                            if (sourceMasterFileNames.Contains(document))
+                            if (sourceMasterFileNames.Contains(document.FileName))
                             {
                                 sourcePath = sourcePathMaster;
                             }
-                            else if (sourceDraftFileNames.Contains(document))
+                            else if (sourceDraftFileNames.Contains(document.FileName))
                             {
                                 sourcePath = sourcePathDraft;
                             }
-                            string newDocumentName = Path.GetFileNameWithoutExtension(document) + " " + filesTimeStamp + Path.GetExtension(document);
-                            archive.CreateEntryFromFile(Path.Combine(sourcePath, document), Path.Combine(baselineFolderName, newDocumentName));
+                            string newDocumentName = string.Join("-", document.Title.Split(Path.GetInvalidFileNameChars())); //remove illegal chars
+                            newDocumentName = newDocumentName + " " + filesTimeStamp + Path.GetExtension(document.FileName);
+                            archive.CreateEntryFromFile(Path.Combine(sourcePath, document.FileName), Path.Combine(baselineFolderName, newDocumentName));
                         }
                         OutputWriter.DisplayMessage(msgTextSuccess);
                         OutputWriter.WriteMessageInLogFile(msgTextSuccess);
@@ -139,10 +144,10 @@ namespace BaselinedDocuments
             }
         }
 
-        private static bool isDocumentsAvailable(Statement statement, string[] sourceMasterFileNames, string[] sourceDraftFileNames)
+        private static bool IsDocumentsAvailable(Statement statement, string[] sourceMasterFileNames, string[] sourceDraftFileNames)
         {
             var combinedFileNames = sourceMasterFileNames.Union(sourceDraftFileNames);
-            return combinedFileNames.Intersect(statement.Documents).Count() == statement.Documents.Count();
+            return combinedFileNames.Intersect(statement.Documents.Select(d => d.FileName)).Count() == statement.Documents.Count();
         }
 
         private static bool IsRequiredPathsValid()

@@ -11,11 +11,11 @@ namespace BaselinedDocuments
         public Statement()
         {
             this.Name = String.Empty;
-            this.Documents = new HashSet<string>();
+            this.Documents = new HashSet<Document>();
         }
 
         public string Name { get; set; }
 
-        public HashSet<string> Documents { get; set; }
+        public HashSet<Document> Documents { get; set; }
     }
 }
