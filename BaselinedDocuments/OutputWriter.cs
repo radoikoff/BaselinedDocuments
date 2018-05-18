@@ -8,25 +8,23 @@ using System.Threading.Tasks;
 
 namespace BaselinedDocuments
 {
-    public static class OutputWriter
+    public class OutputWriter : IOutputWriter
     {
-        public static void DisplayMessage(string message)
+        public void DisplayMessage(string message)
         {
             Console.WriteLine(message);
         }
 
-        public static void WriteMessageInLogFile(string message)
+        public void WriteMessageInLogFile(string message)
         {
             string logFileName = ConfigurationManager.AppSettings.Get("LogFileName");
-            File.AppendAllText(logFileName, DateTime.Now + " : " + message + "\r\n");
+            File.AppendAllText(logFileName, DateTime.Now + " : " + message + Environment.NewLine);
         }
 
-        public static void DisplayMessageAndAddToLogFile(string message)
+        public void LogMessage(string message)
         {
-            Console.WriteLine(message);
-            string logFileName = ConfigurationManager.AppSettings.Get("LogFileName");
-            File.AppendAllText(logFileName, DateTime.Now + " : " + message + "\r\n");
+            DisplayMessage(message);
+            WriteMessageInLogFile(message);
         }
-
     }
 }
