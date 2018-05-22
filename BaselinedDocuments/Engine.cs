@@ -38,13 +38,13 @@ namespace BaselinedDocuments
                 {
                     fullArchiveName = Path.Combine(destinationPath, archiveName) + ".zip";
                     bool success = CreateUpdateZip(statement, destinationPath, fullArchiveName);
-                    if (success) logger.LogMessage(archiveName + " updated successfully");
+                    if (success) logger.LogMessage(archiveName + " updated.");
                 }
                 else //create
                 {
                     fullArchiveName = Path.Combine(destinationPath, newZipFilesPath, archiveName) + ".zip";
                     bool success = CreateUpdateZip(statement, destinationPath, fullArchiveName);
-                    if (success) logger.LogMessage(archiveName + " created successfuly");
+                    if (success) logger.LogMessage(archiveName + " created.");
                 }
             }
         }
